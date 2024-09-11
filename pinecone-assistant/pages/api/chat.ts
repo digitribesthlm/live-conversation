@@ -14,6 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { messages } = req.body;
 
+    if (!messages || !Array.isArray(messages)) {
+      console.error('Invalid messages format:', messages);
+      res.status(400).json({ error: 'Invalid messages format. Expected an array.' });
+      return;
+    }
+
     const response = await fetch(`${PINECONE_ASSISTANT_URL}/${PINECONE_ASSISTANT_NAME}/chat`, {
       method: 'POST',
       headers: {
@@ -28,6 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (response.ok) {
       res.status(200).json(data);
     } else {
+      console.error('Error from Pinecone assistant API:', data.error);
       res.status(response.status).json({ error: data.error || 'An error occurred while communicating with the Pinecone assistant.' });
     }
   } catch (error) {
