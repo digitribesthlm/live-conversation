@@ -1,0 +1,16 @@
+# Ignore sensitive/local files
+.env.yaml
+.env
+*.local
+*.env
+
+# Node/Next build artifacts (present in subfolders)
+.next/
+node_modules/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
