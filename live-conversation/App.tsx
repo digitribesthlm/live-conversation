@@ -247,13 +247,18 @@ const App: React.FC = () => {
                     
                     console.log('Fetching Lynch score for ticker:', ticker);
                     
+                    const lynchToken = process.env.WEBHOOK_LYNCH_TOKEN as string;
+                    if (!lynchToken) {
+                      throw new Error('WEBHOOK_LYNCH_TOKEN environment variable not set');
+                    }
+                    
                     const response = await fetch(stockWebhookUrl, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
                       },
                       body: JSON.stringify({
-                        token: 'tooken',
+                        token: lynchToken,
                         tickers: [ticker.toUpperCase()]
                       })
                     });
