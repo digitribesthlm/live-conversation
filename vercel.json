@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd live-conversation && npm run build",
+  "outputDirectory": "live-conversation/dist",
+  "installCommand": "cd live-conversation && npm ci",
+  "framework": null
+}
