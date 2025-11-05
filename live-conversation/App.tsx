@@ -140,6 +140,16 @@ const App: React.FC = () => {
         await outputAudioContextRef.current.resume();
       }
 
+      // Define function for fetching message from webhook
+      const getMyMessageFunction = {
+        name: 'get_my_message',
+        description: 'Fetches a message from the user\'s webhook. Call this when the user asks to "get my message", "fetch my message", "retrieve my message", or similar requests.',
+      };
+
+      const tools = [{
+        functionDeclarations: [getMyMessageFunction]
+      }];
+
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -149,7 +159,8 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural.',
+          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function.',
+          tools: tools,
         },
         callbacks: {
           onopen: () => {
@@ -173,6 +184,50 @@ const App: React.FC = () => {
             scriptProcessor.connect(inputAudioContextRef.current!.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
+            // Handle function calls from Gemini
+            if (message.toolCall) {
+              console.log('Function call received:', message.toolCall);
+              const functionResponses = [];
+              
+              for (const fc of message.toolCall.functionCalls || []) {
+                if (fc.name === 'get_my_message') {
+                  console.log('Fetching message from webhook...');
+                  try {
+                    const webhookUrl = process.env.WEBHOOK_URL as string;
+                    if (!webhookUrl) {
+                      throw new Error('WEBHOOK_URL environment variable not set');
+                    }
+                    
+                    const response = await fetch(webhookUrl);
+                    const data = await response.json();
+                    const message = data.message || 'No message found';
+                    
+                    console.log('Webhook response:', message);
+                    
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { message: message }
+                    });
+                  } catch (error) {
+                    console.error('Error fetching webhook:', error);
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { error: 'Failed to fetch message from webhook' }
+                    });
+                  }
+                }
+              }
+              
+              if (functionResponses.length > 0) {
+                const session = await sessionPromiseRef.current;
+                if (session) {
+                  await session.sendToolResponse({ functionResponses });
+                }
+              }
+            }
+
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio) {
               setStatus('speaking');
