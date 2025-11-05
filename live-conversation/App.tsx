@@ -148,7 +148,7 @@ const App: React.FC = () => {
 
       const getLynchStockScoreFunction = {
         name: 'get_lynch_stock_score',
-        description: 'Fetches Lynch score and stock analysis for a given stock ticker. Call this when the user asks for "lynch score", "stock analysis", or mentions a stock ticker symbol.',
+        description: 'Fetches Lynch score and stock analysis for a given stock ticker. Call this when the user asks for "lynch score", "stock analysis", or mentions a stock ticker symbol. This function takes about 10 seconds to complete.',
         parameters: {
           type: 'object',
           properties: {
@@ -159,6 +159,7 @@ const App: React.FC = () => {
           },
           required: ['ticker'],
         },
+        behavior: 'NON_BLOCKING',  // Allow async execution for long-running calls
       };
 
       const tools = [{
@@ -174,7 +175,7 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention.',
+          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention. The stock analysis takes about 10 seconds, so acknowledge the request and let the user know you\'re fetching the data. When the results arrive, interrupt to share them immediately.',
           tools: tools,
         },
         callbacks: {
@@ -275,14 +276,18 @@ const App: React.FC = () => {
                         name: fc.name,
                         response: { 
                           summary: summary,
-                          data: stockData
+                          data: stockData,
+                          scheduling: 'INTERRUPT'  // Interrupt to announce results immediately
                         }
                       });
                     } else {
                       functionResponses.push({
                         id: fc.id,
                         name: fc.name,
-                        response: { error: 'No stock data found for ticker: ' + ticker }
+                        response: { 
+                          error: 'No stock data found for ticker: ' + ticker,
+                          scheduling: 'INTERRUPT'
+                        }
                       });
                     }
                   } catch (error) {
@@ -290,7 +295,10 @@ const App: React.FC = () => {
                     functionResponses.push({
                       id: fc.id,
                       name: fc.name,
-                      response: { error: 'Failed to fetch stock data: ' + (error instanceof Error ? error.message : 'Unknown error') }
+                      response: { 
+                        error: 'Failed to fetch stock data: ' + (error instanceof Error ? error.message : 'Unknown error'),
+                        scheduling: 'INTERRUPT'
+                      }
                     });
                   }
                 }
