@@ -1,0 +1,17 @@
+{
+  "name": "Gemini Live Conversation",
+  "short_name": "Gemini Live",
+  "description": "Voice conversation with Gemini AI",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#111827",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48 32x32 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

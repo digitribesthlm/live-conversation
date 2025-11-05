@@ -285,7 +285,21 @@ const App: React.FC = () => {
           <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
             Gemini Live Conversation
           </h1>
-          <StatusIndicator status={status} />
+          <div className="flex items-center gap-3">
+            <StatusIndicator status={status} />
+            <button
+              onClick={() => {
+                stopConversation();
+                setIsAuthenticated(false);
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-700 hover:bg-red-600 transition-colors duration-200 text-gray-300 hover:text-white"
+              title="Exit"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </header>
         
         <main className="flex-1 p-6 overflow-y-auto space-y-6">
