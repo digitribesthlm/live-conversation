@@ -3,6 +3,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TranscriptionEntry } from './types';
 import StatusIndicator from './components/StatusIndicator';
+import Login from './components/Login';
 
 // --- Audio Utility Functions ---
 function encode(bytes: Uint8Array): string {
@@ -59,6 +60,7 @@ function createBlob(data: Float32Array): Blob {
 // --- Main App Component ---
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [status, setStatus] = useState<'idle' | 'connecting' | 'listening' | 'speaking' | 'error'>('idle');
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionEntry[]>([]);
   const [currentTranscription, setCurrentTranscription] = useState({ user: '', gemini: '' });
@@ -130,6 +132,14 @@ const App: React.FC = () => {
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
+      // FIX: iOS Safari requires AudioContext to be resumed from user interaction
+      if (inputAudioContextRef.current.state === 'suspended') {
+        await inputAudioContextRef.current.resume();
+      }
+      if (outputAudioContextRef.current.state === 'suspended') {
+        await outputAudioContextRef.current.resume();
+      }
+
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -167,6 +177,12 @@ const App: React.FC = () => {
             if (base64Audio) {
               setStatus('speaking');
               const outputCtx = outputAudioContextRef.current!;
+              
+              // FIX: Ensure AudioContext is running before playback (iOS Safari fix)
+              if (outputCtx.state === 'suspended') {
+                await outputCtx.resume();
+              }
+              
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
               
               const audioBuffer = await decodeAudioData(decode(base64Audio), outputCtx, 24000, 1);
@@ -237,7 +253,13 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error('Failed to start conversation:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        name: error instanceof Error ? error.name : 'Unknown',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       setStatus('error');
+      stopConversation();
     }
   // FIX: Remove transcription state from dependency array to prevent re-creating the callback on every partial transcription update.
   }, [stopConversation]);
@@ -251,6 +273,10 @@ const App: React.FC = () => {
   };
   
   const isConversationActive = status === 'listening' || status === 'speaking' || status === 'connecting';
+
+  if (!isAuthenticated) {
+    return <Login onLogin={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-4 font-sans">
