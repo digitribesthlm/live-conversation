@@ -162,8 +162,24 @@ const App: React.FC = () => {
         behavior: 'NON_BLOCKING',  // Allow async execution for long-running calls
       };
 
+      const controlGardenLampFunction = {
+        name: 'control_garden_lamp',
+        description: 'Controls the garden lamps by turning them on or off. Call this when the user asks to "turn on the garden lamps", "turn off the garden lights", "switch on/off the garden", or similar requests.',
+        parameters: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['on', 'off'],
+              description: 'The action to perform: "on" to turn on the lamps, "off" to turn them off',
+            },
+          },
+          required: ['action'],
+        },
+      };
+
       const tools = [{
-        functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction]
+        functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction, controlGardenLampFunction]
       }];
 
       sessionPromiseRef.current = ai.live.connect({
@@ -175,7 +191,7 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention. The stock analysis takes about 10 seconds, so acknowledge the request and let the user know you\'re fetching the data. When the results arrive, interrupt to share them immediately.',
+          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention. The stock analysis takes about 10 seconds, so acknowledge the request and let the user know you\'re fetching the data. When the results arrive, interrupt to share them immediately. When the user asks to turn on or off the garden lamps/lights, use the control_garden_lamp function with the appropriate action (on or off).',
           tools: tools,
         },
         callbacks: {
@@ -299,6 +315,50 @@ const App: React.FC = () => {
                         error: 'Failed to fetch stock data: ' + (error instanceof Error ? error.message : 'Unknown error'),
                         scheduling: 'INTERRUPT'
                       }
+                    });
+                  }
+                } else if (fc.name === 'control_garden_lamp') {
+                  console.log('Controlling garden lamp:', fc.args);
+                  try {
+                    const lampWebhookUrl = process.env.WEBHOOK_LAMP_GARDENPOST as string;
+                    if (!lampWebhookUrl) {
+                      throw new Error('WEBHOOK_LAMP_GARDENPOST environment variable not set');
+                    }
+                    
+                    const action = fc.args?.action || '';
+                    if (!action || (action !== 'on' && action !== 'off')) {
+                      throw new Error('Invalid action. Must be "on" or "off"');
+                    }
+                    
+                    console.log('Turning garden lamps:', action);
+                    
+                    const response = await fetch(lampWebhookUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        value: action
+                      })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Lamp webhook response:', data);
+                    
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { 
+                        result: `Garden lamps turned ${action} successfully`,
+                        status: 'success'
+                      }
+                    });
+                  } catch (error) {
+                    console.error('Error controlling garden lamp:', error);
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { error: 'Failed to control garden lamp: ' + (error instanceof Error ? error.message : 'Unknown error') }
                     });
                   }
                 }
