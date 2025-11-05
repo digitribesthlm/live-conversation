@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.WEBHOOK_URL': JSON.stringify(env.WEBHOOK_URL)
+        'process.env.WEBHOOK_URL': JSON.stringify(env.WEBHOOK_URL),
+        'process.env.WEBHOOK_LYNCH_STOCK': JSON.stringify(env.WEBHOOK_LYNCH_STOCK)
       },
       resolve: {
         alias: {

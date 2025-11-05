@@ -146,8 +146,23 @@ const App: React.FC = () => {
         description: 'Fetches a message from the user\'s webhook. Call this when the user asks to "get my message", "fetch my message", "retrieve my message", or similar requests.',
       };
 
+      const getLynchStockScoreFunction = {
+        name: 'get_lynch_stock_score',
+        description: 'Fetches Lynch score and stock analysis for a given stock ticker. Call this when the user asks for "lynch score", "stock analysis", or mentions a stock ticker symbol.',
+        parameters: {
+          type: 'object',
+          properties: {
+            ticker: {
+              type: 'string',
+              description: 'The stock ticker symbol (e.g., "KO", "AAPL", "MSFT")',
+            },
+          },
+          required: ['ticker'],
+        },
+      };
+
       const tools = [{
-        functionDeclarations: [getMyMessageFunction]
+        functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction]
       }];
 
       sessionPromiseRef.current = ai.live.connect({
@@ -159,7 +174,7 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function.',
+          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention.',
           tools: tools,
         },
         callbacks: {
@@ -215,6 +230,62 @@ const App: React.FC = () => {
                       id: fc.id,
                       name: fc.name,
                       response: { error: 'Failed to fetch message from webhook' }
+                    });
+                  }
+                } else if (fc.name === 'get_lynch_stock_score') {
+                  console.log('Fetching Lynch score for stock:', fc.args);
+                  try {
+                    const stockWebhookUrl = process.env.WEBHOOK_LYNCH_STOCK as string;
+                    if (!stockWebhookUrl) {
+                      throw new Error('WEBHOOK_LYNCH_STOCK environment variable not set');
+                    }
+                    
+                    const ticker = fc.args?.ticker || '';
+                    if (!ticker) {
+                      throw new Error('No ticker provided');
+                    }
+                    
+                    console.log('Fetching Lynch score for ticker:', ticker);
+                    
+                    const response = await fetch(stockWebhookUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        token: 'tooken',
+                        tickers: [ticker.toUpperCase()]
+                      })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Stock webhook response:', data);
+                    
+                    if (data.results && data.results.length > 0) {
+                      const stockData = data.results[0];
+                      const summary = `${stockData['Company Name']} (${stockData.Ticker}) has a Lynch Score of ${stockData['Lynch Score']}, which is ${stockData['Score Category']}. The P/E ratio is ${stockData['P/E Ratio']}, with earnings growth of ${stockData['Earnings Growth %']}% and revenue growth of ${stockData['Revenue Growth %']}%. The company is in the ${stockData.Sector} sector, specifically ${stockData.Industry}.`;
+                      
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { 
+                          summary: summary,
+                          data: stockData
+                        }
+                      });
+                    } else {
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { error: 'No stock data found for ticker: ' + ticker }
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error fetching stock data:', error);
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { error: 'Failed to fetch stock data: ' + (error instanceof Error ? error.message : 'Unknown error') }
                     });
                   }
                 }
