@@ -123,21 +123,36 @@ const App: React.FC = () => {
     setTranscriptionHistory([]);
 
     try {
+      // Detect if running in PWA standalone mode
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+      console.log('Running in PWA mode:', isPWA);
+      console.log('User agent:', navigator.userAgent);
+      
+      console.log('Requesting microphone permission...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone permission granted, stream:', stream);
       mediaStreamRef.current = stream;
 
+      console.log('Creating GoogleGenAI client...');
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
       // FIX: Cast window to `any` to allow for `webkitAudioContext` for older browser compatibility without TypeScript errors.
+      console.log('Creating AudioContext...');
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      console.log('Input AudioContext state:', inputAudioContextRef.current.state);
+      console.log('Output AudioContext state:', outputAudioContextRef.current.state);
 
       // FIX: iOS Safari requires AudioContext to be resumed from user interaction
       if (inputAudioContextRef.current.state === 'suspended') {
+        console.log('Resuming input AudioContext...');
         await inputAudioContextRef.current.resume();
+        console.log('Input AudioContext resumed, new state:', inputAudioContextRef.current.state);
       }
       if (outputAudioContextRef.current.state === 'suspended') {
+        console.log('Resuming output AudioContext...');
         await outputAudioContextRef.current.resume();
+        console.log('Output AudioContext resumed, new state:', outputAudioContextRef.current.state);
       }
 
       // Define function for fetching message from webhook
@@ -198,6 +213,7 @@ const App: React.FC = () => {
         functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction, controlGardenLampFunction, askBusinessAssistantFunction]
       }];
 
+      console.log('Connecting to Gemini Live API...');
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -559,11 +575,22 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error('Failed to start conversation:', error);
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches;
       console.error('Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         name: error instanceof Error ? error.name : 'Unknown',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        isPWA: isPWA,
+        userAgent: navigator.userAgent
       });
+      
+      // Show user-friendly error message
+      if (isPWA && error instanceof Error && error.name === 'NotAllowedError') {
+        alert('Microphone permission denied. Please allow microphone access in your browser settings and try again.');
+      } else if (isPWA) {
+        alert('Connection failed in PWA mode. Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      }
+      
       setStatus('error');
       stopConversation();
     }
