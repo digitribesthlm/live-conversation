@@ -64,6 +64,8 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'listening' | 'speaking' | 'error'>('idle');
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionEntry[]>([]);
   const [currentTranscription, setCurrentTranscription] = useState({ user: '', gemini: '' });
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
+  const [showConsole, setShowConsole] = useState(false);
   // FIX: Use a ref to hold the accumulating transcription to avoid stale closures in the onmessage callback.
   const currentTranscriptionRef = useRef({ user: '', gemini: '' });
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -81,6 +83,14 @@ const App: React.FC = () => {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcriptionHistory, currentTranscription]);
+
+  // Helper function to add logs to the visual console
+  const addLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}`;
+    setConsoleLogs(prev => [...prev, logEntry].slice(-100)); // Keep last 100 logs
+    console.log(message); // Also log to browser console
+  }, []);
 
 
   const stopConversation = useCallback(() => {
@@ -125,34 +135,34 @@ const App: React.FC = () => {
     try {
       // Detect if running in PWA standalone mode
       const isPWA = window.matchMedia('(display-mode: standalone)').matches;
-      console.log('Running in PWA mode:', isPWA);
-      console.log('User agent:', navigator.userAgent);
+      addLog('Running in PWA mode: ' + isPWA);
+      addLog('User agent: ' + navigator.userAgent);
       
-      console.log('Requesting microphone permission...');
+      addLog('Requesting microphone permission...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('Microphone permission granted, stream:', stream);
+      addLog('Microphone permission granted');
       mediaStreamRef.current = stream;
 
-      console.log('Creating GoogleGenAI client...');
+      addLog('Creating GoogleGenAI client...');
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
       // FIX: Cast window to `any` to allow for `webkitAudioContext` for older browser compatibility without TypeScript errors.
-      console.log('Creating AudioContext...');
+      addLog('Creating AudioContext...');
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      console.log('Input AudioContext state:', inputAudioContextRef.current.state);
-      console.log('Output AudioContext state:', outputAudioContextRef.current.state);
+      addLog('Input AudioContext state: ' + inputAudioContextRef.current.state);
+      addLog('Output AudioContext state: ' + outputAudioContextRef.current.state);
 
       // FIX: iOS Safari requires AudioContext to be resumed from user interaction
       if (inputAudioContextRef.current.state === 'suspended') {
-        console.log('Resuming input AudioContext...');
+        addLog('Resuming input AudioContext...');
         await inputAudioContextRef.current.resume();
-        console.log('Input AudioContext resumed, new state:', inputAudioContextRef.current.state);
+        addLog('Input AudioContext resumed, new state: ' + inputAudioContextRef.current.state);
       }
       if (outputAudioContextRef.current.state === 'suspended') {
-        console.log('Resuming output AudioContext...');
+        addLog('Resuming output AudioContext...');
         await outputAudioContextRef.current.resume();
-        console.log('Output AudioContext resumed, new state:', outputAudioContextRef.current.state);
+        addLog('Output AudioContext resumed, new state: ' + outputAudioContextRef.current.state);
       }
 
       // Define function for fetching message from webhook
@@ -213,7 +223,7 @@ const App: React.FC = () => {
         functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction, controlGardenLampFunction, askBusinessAssistantFunction]
       }];
 
-      console.log('Connecting to Gemini Live API...');
+      addLog('Connecting to Gemini Live API...');
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -228,7 +238,7 @@ const App: React.FC = () => {
         },
         callbacks: {
           onopen: () => {
-            console.log('Session opened.');
+            addLog('Session opened - Connection successful!');
             setStatus('listening');
 
             const source = inputAudioContextRef.current!.createMediaStreamSource(stream);
@@ -574,11 +584,17 @@ const App: React.FC = () => {
       });
 
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+      addLog('ERROR: Failed to start conversation');
+      addLog('Error type: ' + errorName);
+      addLog('Error message: ' + errorMsg);
+      
       console.error('Failed to start conversation:', error);
       const isPWA = window.matchMedia('(display-mode: standalone)').matches;
       console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        name: error instanceof Error ? error.name : 'Unknown',
+        message: errorMsg,
+        name: errorName,
         stack: error instanceof Error ? error.stack : 'No stack trace',
         isPWA: isPWA,
         userAgent: navigator.userAgent
@@ -595,7 +611,7 @@ const App: React.FC = () => {
       stopConversation();
     }
   // FIX: Remove transcription state from dependency array to prevent re-creating the callback on every partial transcription update.
-  }, [stopConversation]);
+  }, [stopConversation, addLog]);
 
   const toggleConversation = () => {
     if (status === 'listening' || status === 'speaking' || status === 'connecting') {
@@ -693,6 +709,42 @@ const App: React.FC = () => {
           </button>
         </footer>
       </div>
+
+      {/* Console Overlay */}
+      <button
+        onClick={() => setShowConsole(!showConsole)}
+        className="fixed bottom-20 right-4 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center z-50 transition-all"
+        title="Toggle Console"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </button>
+
+      {showConsole && (
+        <div className="fixed bottom-0 left-0 right-0 h-96 bg-black bg-opacity-95 text-green-400 font-mono text-xs p-4 overflow-y-auto z-40 border-t-2 border-green-500">
+          <div className="flex justify-between items-center mb-2 pb-2 border-b border-green-700">
+            <h3 className="text-sm font-bold text-green-300">Console Logs</h3>
+            <button
+              onClick={() => setConsoleLogs([])}
+              className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="space-y-1">
+            {consoleLogs.length === 0 ? (
+              <p className="text-gray-500">No logs yet...</p>
+            ) : (
+              consoleLogs.map((log, index) => (
+                <div key={index} className={log.includes('ERROR') ? 'text-red-400' : 'text-green-400'}>
+                  {log}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
