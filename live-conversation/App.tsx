@@ -427,9 +427,17 @@ const App: React.FC = () => {
                     const data = await response.json();
                     console.log('Business assistant response:', data);
                     
-                    if (data && data.length > 0 && data[0].output) {
-                      const answer = data[0].output;
-                      
+                    // Handle both {output: "..."} and [{output: "..."}] formats
+                    let answer = null;
+                    if (data && data.output) {
+                      // Direct object format: {output: "..."}
+                      answer = data.output;
+                    } else if (data && data.length > 0 && data[0].output) {
+                      // Array format: [{output: "..."}]
+                      answer = data[0].output;
+                    }
+                    
+                    if (answer) {
                       functionResponses.push({
                         id: fc.id,
                         name: fc.name,
