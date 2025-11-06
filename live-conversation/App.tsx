@@ -332,13 +332,15 @@ const App: React.FC = () => {
                     
                     console.log('Turning garden lamps:', action);
                     
-                    const response = await fetch(lampWebhookUrl, {
+                    // Use the server-side proxy to avoid CORS issues
+                    const response = await fetch('/api/webhook-proxy', {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
                       },
                       body: JSON.stringify({
-                        value: action
+                        webhookUrl: lampWebhookUrl,
+                        action: action
                       })
                     });
                     
