@@ -178,8 +178,24 @@ const App: React.FC = () => {
         },
       };
 
+      const askBusinessAssistantFunction = {
+        name: 'ask_business_assistant',
+        description: 'Asks your internal business assistant a question. The assistant has access to your task management system, MongoDB database, Google Sheets documentation, and other business tools. Call this when the user asks to "ask my business assistant", "ask my assistant", "consult my assistant", or asks business-related questions. This may take 10-15 seconds to process.',
+        parameters: {
+          type: 'object',
+          properties: {
+            question: {
+              type: 'string',
+              description: 'The question to ask the business assistant',
+            },
+          },
+          required: ['question'],
+        },
+        behavior: 'NON_BLOCKING',  // Allow async execution for AI agent processing
+      };
+
       const tools = [{
-        functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction, controlGardenLampFunction]
+        functionDeclarations: [getMyMessageFunction, getLynchStockScoreFunction, controlGardenLampFunction, askBusinessAssistantFunction]
       }];
 
       sessionPromiseRef.current = ai.live.connect({
@@ -191,7 +207,7 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention. The stock analysis takes about 10 seconds, so acknowledge the request and let the user know you\'re fetching the data. When the results arrive, interrupt to share them immediately. When the user asks to turn on or off the garden lamps/lights, use the control_garden_lamp function with the appropriate action (on or off).',
+          systemInstruction: 'You are a friendly and helpful conversational AI. Keep your responses concise and natural. When the user asks you to get their message, use the get_my_message function. When the user asks for a Lynch score or stock analysis for a ticker, use the get_lynch_stock_score function with the ticker symbol they mention. The stock analysis takes about 10 seconds, so acknowledge the request and let the user know you\'re fetching the data. When the results arrive, interrupt to share them immediately. When the user asks to turn on or off the garden lamps/lights, use the control_garden_lamp function with the appropriate action (on or off). When the user asks to consult their business assistant or asks business-related questions, use the ask_business_assistant function. The assistant may take 10-15 seconds to respond.',
           tools: tools,
         },
         callbacks: {
@@ -375,6 +391,72 @@ const App: React.FC = () => {
                       response: { 
                         error: 'Failed to control garden lamp: ' + (error instanceof Error ? error.message : 'Unknown error'),
                         scheduling: 'INTERRUPT'  // Match Lynch stock pattern
+                      }
+                    });
+                  }
+                } else if (fc.name === 'ask_business_assistant') {
+                  console.log('Asking business assistant:', fc.args);
+                  try {
+                    const assistantWebhookUrl = process.env.WEBHOOK_BUSINESS_ASSISTANT as string;
+                    if (!assistantWebhookUrl) {
+                      throw new Error('WEBHOOK_BUSINESS_ASSISTANT environment variable not set');
+                    }
+                    
+                    const question = fc.args?.question || '';
+                    if (!question) {
+                      throw new Error('No question provided');
+                    }
+                    
+                    console.log('Sending question to business assistant:', question);
+                    
+                    // Generate a unique session ID for this conversation
+                    const sessionId = crypto.randomUUID();
+                    
+                    const response = await fetch(assistantWebhookUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify([{
+                        action: 'sendMessage',
+                        sessionId: sessionId,
+                        chatInput: question
+                      }])
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Business assistant response:', data);
+                    
+                    if (data && data.length > 0 && data[0].output) {
+                      const answer = data[0].output;
+                      
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { 
+                          summary: answer,
+                          data: data,
+                          scheduling: 'INTERRUPT'
+                        }
+                      });
+                    } else {
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { 
+                          error: 'No response from business assistant',
+                          scheduling: 'INTERRUPT'
+                        }
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error asking business assistant:', error);
+                    functionResponses.push({
+                      id: fc.id,
+                      name: fc.name,
+                      response: { 
+                        error: 'Failed to ask business assistant: ' + (error instanceof Error ? error.message : 'Unknown error'),
+                        scheduling: 'INTERRUPT'
                       }
                     });
                   }

@@ -16,7 +16,8 @@ export default defineConfig(({ mode }) => {
         'process.env.WEBHOOK_URL': JSON.stringify(env.WEBHOOK_URL),
         'process.env.WEBHOOK_LYNCH_STOCK': JSON.stringify(env.WEBHOOK_LYNCH_STOCK),
         'process.env.WEBHOOK_LYNCH_TOKEN': JSON.stringify(env.WEBHOOK_LYNCH_TOKEN),
-        'process.env.WEBHOOK_LAMP_GARDENPOST': JSON.stringify(env.WEBHOOK_LAMP_GARDENPOST)
+        'process.env.WEBHOOK_LAMP_GARDENPOST': JSON.stringify(env.WEBHOOK_LAMP_GARDENPOST),
+        'process.env.WEBHOOK_BUSINESS_ASSISTANT': JSON.stringify(env.WEBHOOK_BUSINESS_ASSISTANT)
       },
       resolve: {
         alias: {
