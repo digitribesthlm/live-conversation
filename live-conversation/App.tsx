@@ -331,6 +331,7 @@ const App: React.FC = () => {
                     }
                     
                     console.log('Turning garden lamps:', action);
+                    console.log('Lamp webhook URL:', lampWebhookUrl);
                     
                     // Use the server-side proxy to avoid CORS issues
                     const response = await fetch('/api/webhook-proxy', {
@@ -344,15 +345,24 @@ const App: React.FC = () => {
                       })
                     });
                     
+                    // Check if response is ok
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
                     const data = await response.json();
                     console.log('Lamp webhook response:', data);
+                    
+                    // Validate response structure (similar to Lynch stock)
+                    const result = data.result || data.message || `Garden lamps turned ${action}`;
                     
                     functionResponses.push({
                       id: fc.id,
                       name: fc.name,
                       response: { 
-                        result: `Garden lamps turned ${action} successfully`,
-                        status: 'success'
+                        result: result,
+                        status: 'success',
+                        scheduling: 'INTERRUPT'  // Match Lynch stock pattern
                       }
                     });
                   } catch (error) {
@@ -360,7 +370,10 @@ const App: React.FC = () => {
                     functionResponses.push({
                       id: fc.id,
                       name: fc.name,
-                      response: { error: 'Failed to control garden lamp: ' + (error instanceof Error ? error.message : 'Unknown error') }
+                      response: { 
+                        error: 'Failed to control garden lamp: ' + (error instanceof Error ? error.message : 'Unknown error'),
+                        scheduling: 'INTERRUPT'  // Match Lynch stock pattern
+                      }
                     });
                   }
                 }
