@@ -331,40 +331,42 @@ const App: React.FC = () => {
                     }
                     
                     console.log('Turning garden lamps:', action);
-                    console.log('Lamp webhook URL:', lampWebhookUrl);
                     
-                    // Use the server-side proxy to avoid CORS issues
-                    const response = await fetch('/api/webhook-proxy', {
+                    const response = await fetch(lampWebhookUrl, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
                       },
                       body: JSON.stringify({
-                        webhookUrl: lampWebhookUrl,
-                        action: action
+                        value: action
                       })
                     });
-                    
-                    // Check if response is ok
-                    if (!response.ok) {
-                      throw new Error(`HTTP error! status: ${response.status}`);
-                    }
                     
                     const data = await response.json();
                     console.log('Lamp webhook response:', data);
                     
-                    // Validate response structure (similar to Lynch stock)
-                    const result = data.result || data.message || `Garden lamps turned ${action}`;
-                    
-                    functionResponses.push({
-                      id: fc.id,
-                      name: fc.name,
-                      response: { 
-                        result: result,
-                        status: 'success',
-                        scheduling: 'INTERRUPT'  // Match Lynch stock pattern
-                      }
-                    });
+                    if (data) {
+                      const result = `Garden lamps turned ${action} successfully`;
+                      
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { 
+                          summary: result,
+                          data: data,
+                          scheduling: 'INTERRUPT'
+                        }
+                      });
+                    } else {
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { 
+                          error: 'No response from lamp webhook',
+                          scheduling: 'INTERRUPT'
+                        }
+                      });
+                    }
                   } catch (error) {
                     console.error('Error controlling garden lamp:', error);
                     functionResponses.push({
